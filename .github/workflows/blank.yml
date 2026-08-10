@@ -1,4 +1,4 @@
-name: Build Hook Library (uClibc ARMv5)
+name: Build Hook (uClibc ARMv5, with libdl)
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Download uClibc toolchain (armv5)
+      - name: Download uClibc toolchain (armv5-eabi)
         run: |
           wget https://toolchains.bootlin.com/downloads/releases/toolchains/armv5-eabi/tarballs/armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
           tar -xjf armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
@@ -45,10 +45,10 @@ jobs:
           }
           EOF
 
-      - name: Compile hook.so with uClibc toolchain
+      - name: Compile hook.so (force link libdl)
         run: |
           export PATH=${{ env.TOOLCHAIN_PATH }}/bin:$PATH
-          arm-linux-gcc -shared -fPIC -o hook.so hook.c -ldl
+          arm-linux-gcc -shared -fPIC -o hook.so hook.c -Wl,--no-as-needed -ldl
 
       - name: Upload hook.so
         uses: actions/upload-artifact@v4
