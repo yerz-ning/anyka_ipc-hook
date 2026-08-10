@@ -18,6 +18,38 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
 
+      - name: Create hook.c
+        run: |
+          cat > hook.c << 'EOF'
+          #define _GNU_SOURCE
+          #include <dlfcn.h>
+          #include <stdio.h>
+          #include <sys/types.h>
+          #include <sys/stat.h>
+          #include <fcntl.h>
+          #include <unistd.h>
+          #include <errno.h>
+
+          typedef int (*orig_GetVideoFrame_func)(void* pDmx, unsigned char** ppData, int* pLen);
+          static orig_GetVideoFrame_func orig_GetVideoFrame = NULL;
+
+          int MediaLib_Dmx_GetVideoFrame(void* pDmx, unsigned char** ppData, int* pLen) {
+              if (!orig_GetVideoFrame) {
+                  orig_GetVideoFrame = (orig_GetVideoFrame_func)dlsym(RTLD_NEXT, "MediaLib_Dmx_GetVideoFrame");
+                  if (!orig_GetVideoFrame) return -1;
+              }
+              int ret = orig_GetVideoFrame(pDmx, ppData, pLen);
+              if (ret == 0 && ppData && *ppData && pLen && *pLen > 0) {
+                  int fd = open("/tmp/camera_fifo", O_WRONLY | O_NONBLOCK);
+                  if (fd >= 0) {
+                      write(fd, *ppData, *pLen);
+                      close(fd);
+                  }
+              }
+              return ret;
+          }
+          EOF
+
       - name: Compile hook.so
         run: |
           arm-linux-gnueabi-gcc -shared -fPIC -o hook.so hook.c -ldl
