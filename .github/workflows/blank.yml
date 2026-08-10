@@ -1,22 +1,17 @@
-name: Build Hook Library (ARMv5)
+name: Build Hook Library (uClibc ARMv5)
 
 on:
-  push:
-    paths:
-      - 'hook.c'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install ARM cross-compiler
+      - name: Download uClibc toolchain (armv5)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+          wget https://toolchains.bootlin.com/downloads/releases/toolchains/armv5-eabi/tarballs/armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
+          tar -xjf armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
+          echo "TOOLCHAIN_PATH=$PWD/armv5-eabi--uclibc--stable-2024.02-1" >> $GITHUB_ENV
 
       - name: Create hook.c
         run: |
@@ -50,12 +45,13 @@ jobs:
           }
           EOF
 
-      - name: Compile hook.so
+      - name: Compile hook.so with uClibc toolchain
         run: |
-          arm-linux-gnueabi-gcc -shared -fPIC -o hook.so hook.c -ldl
+          export PATH=${{ env.TOOLCHAIN_PATH }}/bin:$PATH
+          arm-linux-gcc -shared -fPIC -o hook.so hook.c -ldl
 
       - name: Upload hook.so
         uses: actions/upload-artifact@v4
         with:
-          name: hook-armv5
+          name: hook-uclibc-armv5
           path: hook.so
