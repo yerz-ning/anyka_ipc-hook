@@ -1,4 +1,4 @@
-name: Build Hook (uClibc ARMv5, with libdl)
+name: Build P2P Hook (AK3918)
 
 on:
   workflow_dispatch:
@@ -7,51 +7,60 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Download uClibc toolchain (armv5-eabi)
-        run: |
-          wget https://toolchains.bootlin.com/downloads/releases/toolchains/armv5-eabi/tarballs/armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
-          tar -xjf armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
-          echo "TOOLCHAIN_PATH=$PWD/armv5-eabi--uclibc--stable-2024.02-1" >> $GITHUB_ENV
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Create hook.c
+      - name: Create hook_p2p.c
         run: |
-          cat > hook.c << 'EOF'
+          cat > hook_p2p.c << 'EOF'
           #define _GNU_SOURCE
           #include <dlfcn.h>
           #include <stdio.h>
-          #include <sys/types.h>
-          #include <sys/stat.h>
-          #include <fcntl.h>
           #include <unistd.h>
-          #include <errno.h>
-
-          typedef int (*orig_GetVideoFrame_func)(void* pDmx, unsigned char** ppData, int* pLen);
-          static orig_GetVideoFrame_func orig_GetVideoFrame = NULL;
-
-          int MediaLib_Dmx_GetVideoFrame(void* pDmx, unsigned char** ppData, int* pLen) {
-              if (!orig_GetVideoFrame) {
-                  orig_GetVideoFrame = (orig_GetVideoFrame_func)dlsym(RTLD_NEXT, "MediaLib_Dmx_GetVideoFrame");
-                  if (!orig_GetVideoFrame) return -1;
+          #include <sys/socket.h>
+          #include <netinet/in.h>
+          #include <arpa/inet.h>
+          #include <stdlib.h>
+          #include <string.h>
+          int yi_p2p_send_frame_data(int conn_id, void *header, void *data, int len) {
+              static int (*orig)(int, void*, void*, int) = NULL;
+              if (!orig) {
+                  orig = (int (*)(int, void*, void*, int))dlsym(RTLD_NEXT, "yi_p2p_send_frame_data");
+                  if (!orig) {
+                      fprintf(stderr, "Failed to find yi_p2p_send_frame_data\n");
+                      return -1;
+                  }
               }
-              int ret = orig_GetVideoFrame(pDmx, ppData, pLen);
-              if (ret == 0 && ppData && *ppData && pLen && *pLen > 0) {
-                  int fd = open("/tmp/camera_fifo", O_WRONLY | O_NONBLOCK);
-                  if (fd >= 0) {
-                      write(fd, *ppData, *pLen);
-                      close(fd);
+              int ret = orig(conn_id, header, data, len);
+              if (data && len > 0) {
+                  int sock = socket(AF_INET, SOCK_DGRAM, 0);
+                  if (sock >= 0) {
+                      struct sockaddr_in addr;
+                      memset(&addr, 0, sizeof(addr));
+                      addr.sin_family = AF_INET;
+                      addr.sin_port = htons(8080);
+                      addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+                      sendto(sock, data, len, 0, (struct sockaddr*)&addr, sizeof(addr));
+                      close(sock);
                   }
               }
               return ret;
           }
           EOF
 
-      - name: Compile hook.so (force link libdl)
+      - name: Download ARMv5 uClibc toolchain
+        run: |
+          wget https://toolchains.bootlin.com/downloads/releases/toolchains/armv5-eabi/tarballs/armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
+          tar -xjf armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
+          echo "TOOLCHAIN_PATH=$PWD/armv5-eabi--uclibc--stable-2024.02-1" >> $GITHUB_ENV
+
+      - name: Compile hook_p2p.so
         run: |
           export PATH=${{ env.TOOLCHAIN_PATH }}/bin:$PATH
-          arm-linux-gcc -shared -fPIC -o hook.so hook.c -Wl,--no-as-needed -ldl
+          arm-linux-gcc -shared -fPIC -o hook_p2p.so hook_p2p.c -ldl
 
-      - name: Upload hook.so
+      - name: Upload hook_p2p.so
         uses: actions/upload-artifact@v4
         with:
-          name: hook-uclibc-armv5
-          path: hook.so
+          name: hook-p2p-armv5
+          path: hook_p2p.so
