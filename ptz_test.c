@@ -4,10 +4,10 @@
 #include <unistd.h>
 
 int main(int argc, char **argv) {
-    int fd, steps, cmd;
+    int fd, angle, cmd;
 
     if (argc < 3) {
-        printf("Usage: %s <0|1> <steps>\n", argv[0]);
+        printf("Usage: %s <0|1> <angle>\n", argv[0]);
         printf("  0 = clockwise, 1 = counter-clockwise\n");
         return 1;
     }
@@ -18,11 +18,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    steps = atoi(argv[2]);
-    cmd = (atoi(argv[1]) == 0) ? 0x40046d0d : 0x40046d0e; // 0=顺时针，1=逆时针
+    angle = atoi(argv[2]);
+    cmd = (atoi(argv[1]) == 0) ? 0x40046d0d : 0x40046d0e;
 
-    int ret = ioctl(fd, cmd, &steps);
-    printf("ioctl returned %d, steps=%d\n", ret, steps);
+    int ret = ioctl(fd, cmd, &angle);
+    printf("ioctl returned %d, angle=%d\n", ret, angle);
     close(fd);
     return 0;
 }
