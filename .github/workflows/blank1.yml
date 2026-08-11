@@ -1,0 +1,54 @@
+name: Build PTZ Test (AK3918)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create ptz_test.c
+        run: |
+          cat > ptz_test.c << 'EOF'
+          #include <stdio.h>
+          #include <fcntl.h>
+          #include <sys/ioctl.h>
+          #include <unistd.h>
+
+          int main(int argc, char **argv) {
+              int fd, steps, cmd;
+              if (argc < 3) {
+                  printf("Usage: %s <0|1> <steps>\n", argv[0]);
+                  printf("  0 = clockwise, 1 = counter-clockwise\n");
+                  return 1;
+              }
+              fd = open("/dev/ak-motor0", O_RDWR);
+              if (fd < 0) { perror("open"); return 1; }
+              steps = atoi(argv[2]);
+              cmd = (atoi(argv[1]) == 0) ? 0x40046d0d : 0x40046d0e;
+              int ret = ioctl(fd, cmd, &steps);
+              printf("ioctl returned %d, steps=%d\n", ret, steps);
+              close(fd);
+              return 0;
+          }
+          EOF
+
+      - name: Download ARMv5 uClibc toolchain
+        run: |
+          wget https://toolchains.bootlin.com/downloads/releases/toolchains/armv5-eabi/tarballs/armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
+          tar -xjf armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
+          echo "TOOLCHAIN_PATH=$PWD/armv5-eabi--uclibc--stable-2024.02-1" >> $GITHUB_ENV
+
+      - name: Compile ptz_test
+        run: |
+          export PATH=${{ env.TOOLCHAIN_PATH }}/bin:$PATH
+          arm-linux-gcc -static -o ptz_test ptz_test.c
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ptz-test-armv5
+          path: ptz_test
