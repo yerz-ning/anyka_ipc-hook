@@ -27,11 +27,12 @@ jobs:
         run: |
           export PATH=${{ env.TOOLCHAIN_PATH }}/bin:$PATH
           arm-linux-gcc -o minimal_ipc minimal_ipc.c \
-            -L./usr/lib \
-            -Wl,-rpath-link=./usr/lib \
-            -Wl,--start-group \
-            -lakmedia -lak_mt -lakuio -lakaudiocodec -lakstreamenc -lakplat -lak_common \
-            -Wl,--end-group \
+            ./usr/lib/libakmedia.so \
+            ./usr/lib/libak_mt.so \
+            ./usr/lib/libakstreamenc.so \
+            ./usr/lib/libakaudiocodec.so \
+            ./usr/lib/libakispsdk.so \
+            ./usr/lib/libakaudiofilter.so \
             -lpthread -ldl -lm
 
       - name: Upload binary
