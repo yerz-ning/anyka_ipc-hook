@@ -17,8 +17,6 @@ jobs:
       - name: Extract usr.7z
         run: 7z x usr.7z
 
-      # 现在 usr 目录应该出现在当前目录下，包含 bin, lib, etc.
-
       - name: Download ARMv5 uClibc toolchain
         run: |
           wget https://toolchains.bootlin.com/downloads/releases/toolchains/armv5-eabi/tarballs/armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
@@ -28,13 +26,11 @@ jobs:
       - name: Compile minimal_ipc
         run: |
           export PATH=${{ env.TOOLCHAIN_PATH }}/bin:$PATH
-          # 库文件在 usr/lib 下
           arm-linux-gcc -o minimal_ipc minimal_ipc.c \
-            -I./usr/include \      # 虽然你可能没有头文件，但留空也没关系
             -L./usr/lib \
             -Wl,-rpath-link=./usr/lib \
             -Wl,--start-group \
-            -lakmedia -lak_mt -lakuio -lakaudiocodec -lakstreamenc \
+            -lakmedia -lak_mt -lakuio -lakaudiocodec -lakstreamenc -lakplat -lak_common \
             -Wl,--end-group \
             -lpthread -ldl -lm
 
