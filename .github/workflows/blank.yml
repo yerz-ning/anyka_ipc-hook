@@ -6,9 +6,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Install 7z extractor
+        run: sudo apt-get update && sudo apt-get install -y p7zip-full
+
+      - name: Extract usr.7z
+        run: 7z x usr.7z
+
+      # 现在 usr 目录应该出现在当前目录下，包含 bin, lib, etc.
 
       - name: Download ARMv5 uClibc toolchain
         run: |
@@ -16,13 +25,18 @@ jobs:
           tar -xjf armv5-eabi--uclibc--stable-2024.02-1.tar.bz2
           echo "TOOLCHAIN_PATH=$PWD/armv5-eabi--uclibc--stable-2024.02-1" >> $GITHUB_ENV
 
-      - name: Compile
+      - name: Compile minimal_ipc
         run: |
           export PATH=${{ env.TOOLCHAIN_PATH }}/bin:$PATH
+          # 库文件在 usr/lib 下
           arm-linux-gcc -o minimal_ipc minimal_ipc.c \
-            -L./lib \
-            -Wl,-rpath-link=./lib \
-            -lakmedia -lak_mt -lakuio -lpthread -ldl -lm
+            -I./usr/include \      # 虽然你可能没有头文件，但留空也没关系
+            -L./usr/lib \
+            -Wl,-rpath-link=./usr/lib \
+            -Wl,--start-group \
+            -lakmedia -lak_mt -lakuio -lakaudiocodec -lakstreamenc \
+            -Wl,--end-group \
+            -lpthread -ldl -lm
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
